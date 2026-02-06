@@ -16,7 +16,7 @@ export const registerUser = TryCatch(async (req, res, next) => {
     SELECT user_id FROM users WHERE email = ${email};
   `;
 
-  if (existingUsers.length > 0){
+  if (existingUsers.length > 0) {
     throw new ErrorHandler(409, "User with this email already exists");
   }
 
@@ -24,32 +24,37 @@ export const registerUser = TryCatch(async (req, res, next) => {
 
   let registeredUser;
 
-if (role === "recruiter") {
-  const [user] =
-    await sql`INSERT INTO users (name, email, password, phone_number, role) VALUES
+  if (role === "recruiter") {
+    const [user] =
+      await sql`INSERT INTO users (name, email, password, phone_number, user_role) VALUES
       (${name}, ${email}, ${hashPassword}, ${phoneNumber}, ${role}) RETURNING
-      user_id, name, email, phone_number, role, created_at`;
+      user_id, name, email, phone_number, user_role, created_at`;
 
-  registeredUser = user;
+    registeredUser = user;
 
-} else if (role === "jobseeker") {
-  const file = req.file;
+  } else if (role === "jobseeker") {
+    const file = req.file;
 
-  if(!file){
-    throw new ErrorHandler(400, "resume file is required for jobseeker");
-  }
+    if (!file) {
+      throw new ErrorHandler(400, "resume file is required for jobseeker");
+    }
 
-  const fileBuffer = getBuffer(file)
-  if(!fileBuffer || !fileBuffer.content){
-    throw new ErrorHandler(500, "Failed to generate buffer");
-  }
-  const {data} = await axios.post(`${process.env.UPLOAD_SERVICE}/api/utils/upload`, {buffer: fileBuffer.content});
+    const fileBuffer = getBuffer(file)
+    if (!fileBuffer || !fileBuffer.content) {
+      throw new ErrorHandler(500, "Failed to generate buffer");
+    }
+    const { data } = await axios.post(`${process.env.UPLOAD_SERVICE}/api/utils/upload`, { buffer: fileBuffer.content });
 
-  const [user] =
-    await sql`INSERT INTO users (name, email, password, phone_number, role, bio, resume, resume_public_id) VALUES
+    const [user] =
+      await sql`INSERT INTO users (name, email, password, phone_number, user_role, bio, resume, resume_public_id) VALUES
       (${name}, ${email}, ${hashPassword}, ${phoneNumber}, ${role}, ${bio}, ${data.url}, ${data.public_id}) RETURNING
-      user_id, name, email, phone_number, role, bio, resume, created_at`;
-}
+      user_id, name, email, phone_number, user_role, bio, resume, created_at`;
 
-  res.json(email);
+    registeredUser = user;
+  }
+
+  res.json({
+    message: "User Registered",
+    registeredUser,
+  });
 });
