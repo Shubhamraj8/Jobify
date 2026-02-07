@@ -28,8 +28,8 @@ export const startSendMailConsumer = async() => {
                     port: 465,
                     secure: true,
                     auth: {
-                        user: "xyz",
-                        pass: "yzx"
+                        user: process.env.SMTP_User,
+                        pass: process.env.SMTP_Password,
                     }
                    })
                    await transporter.sendMail({
