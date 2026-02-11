@@ -1,4 +1,5 @@
 import { AuthenticatedRequest } from "../middlewares/auth.js";
+import getBuffer from "../utils/buffer.js";
 import { sql } from "../utils/db.js";
 import ErrorHandler from "../utils/errorHandler.js";
 import { TryCatch } from "../utils/TryCatch.js";
@@ -30,4 +31,65 @@ export const getUserProfile = TryCatch(async(req, res, next)=>{
     user.skills = user.skills || [];
 
     res.json(user);
+})
+
+export const updateUserProfile = TryCatch(async(req:AuthenticatedRequest, res)=>{
+    const user = req.user;
+    if(!user){
+        throw new ErrorHandler(401, "Authentication required");
+    }
+
+    const {name, phone_number, bio} = req.body;
+
+    const newName = name || user.name;
+    const newPhoneNumber = phone_number || user.phone_number;
+    const newBio = bio || user.bio;
+
+    const [updatedUser] = await sql`
+    UPDATE users SET name = ${newName}, phone_number = ${newPhoneNumber}, bio = ${newBio}
+    WHERE user_id = ${user.user_id}
+    RETURNING user_id, name, email, phone_number,bio
+    `;
+
+    res.json({
+        message: "Profile updated successfully",
+        updatedUser,
+    })
+})
+
+export const updateProfilePic = TryCatch(async(req:AuthenticatedRequest, res)=>{
+
+    const user = req.user;
+    if(!user){
+        throw new ErrorHandler(401, "Authentication required");
+    }
+
+    const file = req.file;
+    if(!file){
+        throw new ErrorHandler(400, "No image file uploaded");
+    }
+
+    const oldPublicId = user.profile_pic_public_id;
+    const fileBuffer = getBuffer(file);
+
+    if(!fileBuffer || !fileBuffer.content){
+        throw new ErrorHandler(400, "Failed to generate Buffer");
+    }
+
+    const {data: uploadResult} = await axios.post(`${process.env.UPLOAD_SERVICE}/api/utils/upload`,
+        {
+            buffer: fileBuffer.content,
+            public_id: oldPublicId,
+        }
+    );
+    const [updatedUser] = await sql`
+    UPDATE  users SET profile_pic = ${uploadResult.url}, profile_pic_public_KEY = 
+    ${uploadResult.publicId} WHERE user_id = ${user.user_id}
+    RETURNING user_id, name, prodfile_pic
+    `;
+
+    res.json({
+        message: "Profile picture updated successfully",
+        updatedUser,
+    })
 })
